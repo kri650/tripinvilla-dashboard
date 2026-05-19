@@ -56,7 +56,7 @@ export default function Dashboard() {
   });
   const [topProperties, setTopProperties] = useState([]);
   const [enquiries, setEnquiries] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState('Feb 2026');
+  const [selectedMonth, setSelectedMonth] = useState('2026');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -84,7 +84,7 @@ export default function Dashboard() {
   }, []);
 
   const handleFilterClick = () => {
-    const m = prompt('Enter Filter Month & Year (e.g. Mar 2026):', selectedMonth);
+    const m = prompt('Enter Filter Year (e.g. 2026):', selectedMonth);
     if (m) setSelectedMonth(m);
   };
 
