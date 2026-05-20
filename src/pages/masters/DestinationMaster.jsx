@@ -29,8 +29,8 @@ export default function DestinationMaster() {
     try {
       const [destRes, statesRes, countriesRes] = await Promise.all([
         fetch('http://localhost:5000/api/master/destinations').then(r => r.json()),
-        fetch('http://localhost:5000/api/master/states').then(r => r.json()),
-        fetch('http://localhost:5000/api/master/countries').then(r => r.json())
+        fetch('http://localhost:5000/api/admin/states/active').then(r => r.json()),
+        fetch('http://localhost:5000/api/admin/countries/active').then(r => r.json())
       ]);
       if (Array.isArray(destRes)) setDestinations(destRes);
       if (Array.isArray(statesRes)) {

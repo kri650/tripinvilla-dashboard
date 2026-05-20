@@ -31,6 +31,7 @@ import PayNow from './pages/useraccess/PayNow';
 import SupportAbuse from './pages/useraccess/SupportAbuse';
 import LogOut from './pages/useraccess/LogOut';
 import Enquiries from './pages/Enquiries';
+import Login from './pages/Login';
 import './index.css';
 
 export default function App() {
@@ -77,6 +78,7 @@ export default function App() {
           {/* Enquiries */}
           <Route path="enquiries" element={<Enquiries />} />
         </Route>
+        <Route path="/admin/login" element={<Login />} />
         <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
       </Routes>
     </BrowserRouter>

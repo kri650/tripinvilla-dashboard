@@ -13,34 +13,53 @@ export default function CityMaster() {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterState, setFilterState] = useState('All');
+  
+  // Read stateId from URL to pre-filter
+  const queryParams = new URLSearchParams(window.location.search);
+  const initialFilterState = queryParams.get('stateId') || 'All';
+  const [filterState, setFilterState] = useState(initialFilterState);
+  
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchStates = async () => {
     try {
-      const [citiesRes, statesRes] = await Promise.all([
-        fetch('http://localhost:5000/api/master/cities').then(r => r.json()),
-        fetch('http://localhost:5000/api/master/states').then(r => r.json())
-      ]);
-      if (Array.isArray(citiesRes)) setCities(citiesRes);
-      if (Array.isArray(statesRes)) {
-        setStates(statesRes);
-        if (statesRes.length > 0 && !formData.stateId) {
-          setFormData(prev => ({ ...prev, stateId: statesRes[0]._id }));
+      const res = await fetch('http://localhost:5000/api/admin/states/active');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setStates(data);
+        if (data.length > 0 && !formData.stateId) {
+          setFormData(prev => ({ ...prev, stateId: data[0]._id }));
         }
       }
     } catch (err) {
-      console.error('Error fetching city master data:', err);
+      console.error('Error fetching states:', err);
+    }
+  };
+
+  const fetchCities = async () => {
+    setLoading(true);
+    try {
+      const url = filterState === 'All' 
+        ? 'http://localhost:5000/api/admin/cities' 
+        : `http://localhost:5000/api/admin/cities?state_id=${filterState}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (Array.isArray(data)) setCities(data);
+    } catch (err) {
+      console.error('Error fetching cities:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchStates();
   }, []);
+
+  useEffect(() => {
+    fetchCities();
+  }, [filterState]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,20 +75,20 @@ export default function CityMaster() {
 
     try {
       if (isEditing) {
-        const res = await fetch(`http://localhost:5000/api/master/cities/${formData.id}`, {
+        const res = await fetch(`http://localhost:5000/api/admin/cities/${formData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
         });
-        if (res.ok) fetchData();
+        if (res.ok) fetchCities();
         setIsEditing(false);
       } else {
-        const res = await fetch('http://localhost:5000/api/master/cities', {
+        const res = await fetch('http://localhost:5000/api/admin/cities', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
         });
-        if (res.ok) fetchData();
+        if (res.ok) fetchCities();
       }
 
       setFormData({
@@ -101,10 +120,16 @@ export default function CityMaster() {
 
   const confirmDelete = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/master/cities/${deleteTargetId}`, { method: 'DELETE' });
-      if (res.ok) fetchData();
+      const res = await fetch(`http://localhost:5000/api/admin/cities/${deleteTargetId}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchCities();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Error deleting city');
+      }
     } catch (err) {
       console.error('Error deleting city:', err);
+      alert('Error deleting city');
     } finally {
       setShowDeleteModal(false);
       setDeleteTargetId(null);
@@ -112,12 +137,10 @@ export default function CityMaster() {
   };
 
   const filteredCities = cities.filter(c => {
-    const stId = c.stateId?._id || c.stateId;
-    const matchesState = filterState === 'All' || stId === filterState;
     const matchesSearch = (c.cityName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (c.stateName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (c.countryName || '').toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesState && matchesSearch;
+    return matchesSearch;
   });
 
   const selectedStateObj = states.find(s => s._id === formData.stateId);

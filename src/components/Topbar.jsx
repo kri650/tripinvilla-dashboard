@@ -54,11 +54,35 @@ export default function Topbar() {
 
         {/* User block */}
         <div className="topbar-user">
-          <div className="topbar-avatar">J</div>
-          <div>
-            <div className="topbar-user-name">Jhon Doe</div>
-            <div className="topbar-user-role">jhon@gmail.com</div>
-          </div>
+          {(() => {
+            const adminUserStr = localStorage.getItem('admin_user');
+            let name = 'Admin User';
+            let email = 'admin@tripinvilla.com';
+            let initial = 'A';
+            if (adminUserStr) {
+              try {
+                const u = JSON.parse(adminUserStr);
+                if (u.name) {
+                  name = u.name;
+                  initial = u.name[0].toUpperCase();
+                }
+                if (u.email) {
+                  email = u.email;
+                }
+              } catch (e) {
+                console.error(e);
+              }
+            }
+            return (
+              <>
+                <div className="topbar-avatar">{initial}</div>
+                <div>
+                  <div className="topbar-user-name">{name}</div>
+                  <div className="topbar-user-role">{email}</div>
+                </div>
+              </>
+            );
+          })()}
           <ChevronDown style={{ width: 13, height: 13, color: '#9CA3AF', marginLeft: 4 }} />
         </div>
       </div>

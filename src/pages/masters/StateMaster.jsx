@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Map, Edit2, Trash2, Search, AlertTriangle } from 'lucide-react';
 
 export default function StateMaster() {
+  const navigate = useNavigate();
   const [states, setStates] = useState([]);
   const [countries, setCountries] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -17,30 +19,43 @@ export default function StateMaster() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchCountries = async () => {
     try {
-      const [statesRes, countriesRes] = await Promise.all([
-        fetch('http://localhost:5000/api/master/states').then(r => r.json()),
-        fetch('http://localhost:5000/api/master/countries').then(r => r.json())
-      ]);
-      if (Array.isArray(statesRes)) setStates(statesRes);
-      if (Array.isArray(countriesRes)) {
-        setCountries(countriesRes);
-        if (countriesRes.length > 0 && !formData.countryId) {
-          setFormData(prev => ({ ...prev, countryId: countriesRes[0]._id }));
+      const res = await fetch('http://localhost:5000/api/admin/countries/active');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setCountries(data);
+        if (data.length > 0 && !formData.countryId) {
+          setFormData(prev => ({ ...prev, countryId: data[0]._id }));
         }
       }
     } catch (err) {
-      console.error('Error fetching state master data:', err);
+      console.error('Error fetching countries:', err);
+    }
+  };
+
+  const fetchStates = async () => {
+    setLoading(true);
+    try {
+      const url = filterCountry === 'All' 
+        ? 'http://localhost:5000/api/admin/states' 
+        : `http://localhost:5000/api/admin/states?country_id=${filterCountry}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (Array.isArray(data)) setStates(data);
+    } catch (err) {
+      console.error('Error fetching states:', err);
     } finally {
       setLoading(false);
     }
   };
+  useEffect(() => {
+    fetchCountries();
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchStates();
+  }, [filterCountry]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,20 +71,20 @@ export default function StateMaster() {
 
     try {
       if (isEditing) {
-        const res = await fetch(`http://localhost:5000/api/master/states/${formData.id}`, {
+        const res = await fetch(`http://localhost:5000/api/admin/states/${formData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
         });
-        if (res.ok) fetchData();
+        if (res.ok) fetchStates();
         setIsEditing(false);
       } else {
-        const res = await fetch('http://localhost:5000/api/master/states', {
+        const res = await fetch('http://localhost:5000/api/admin/states', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
         });
-        if (res.ok) fetchData();
+        if (res.ok) fetchStates();
       }
 
       setFormData({
@@ -101,10 +116,16 @@ export default function StateMaster() {
 
   const confirmDelete = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/master/states/${deleteTargetId}`, { method: 'DELETE' });
-      if (res.ok) fetchData();
+      const res = await fetch(`http://localhost:5000/api/admin/states/${deleteTargetId}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchStates();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Error deleting state');
+      }
     } catch (err) {
       console.error('Error deleting state:', err);
+      alert('Error deleting state');
     } finally {
       setShowDeleteModal(false);
       setDeleteTargetId(null);
@@ -112,11 +133,9 @@ export default function StateMaster() {
   };
 
   const filteredStates = states.filter(s => {
-    const cId = s.countryId?._id || s.countryId;
-    const matchesCountry = filterCountry === 'All' || cId === filterCountry;
     const matchesSearch = (s.stateName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (s.countryName || '').toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCountry && matchesSearch;
+    return matchesSearch;
   });
 
   return (
@@ -252,7 +271,15 @@ export default function StateMaster() {
                   <tr key={stateObj._id}>
                     <td style={{ fontWeight: 600, color: '#111827' }}>{stateObj.stateName}</td>
                     <td style={{ fontWeight: 500 }}>{stateObj.countryName || stateObj.countryId?.countryName || 'N/A'}</td>
-                    <td style={{ textAlign: 'center', fontWeight: 600, color: 'var(--primary)' }}>{stateObj.citiesCount ?? 0}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 600 }}>
+                      <span 
+                        onClick={() => navigate(`/masters/city?stateId=${stateObj._id}`)}
+                        style={{ color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline' }}
+                        title="View Cities in this State"
+                      >
+                        {stateObj.citiesCount ?? 0}
+                      </span>
+                    </td>
                     <td style={{ textAlign: 'center', fontWeight: 500 }}>{stateObj.ownersCount ?? 0}</td>
                     <td>
                       <span className={`status-pill ${stateObj.status ? stateObj.status.toLowerCase() : 'active'}`}>

@@ -1,48 +1,87 @@
 import { useState, useEffect } from 'react';
-import { Star, Edit2, Trash2, Search, AlertTriangle, Wifi, Tv, Wind, Car, HelpCircle, Utensils, Waves, ShieldCheck, Flame, Trees, ChefHat } from 'lucide-react';
+import {
+  Star, Edit2, Trash2, Search, AlertTriangle,
+  Wifi, Tv, Wind, Car, Utensils, Waves, Trees,
+  ShieldCheck, Flame, ChefHat, Coffee, Dumbbell,
+  Bath, Music, Zap, Package, Info
+} from 'lucide-react';
 
-const availableIcons = [
-  { name: 'Wifi', icon: Wifi },
-  { name: 'Tv', icon: Tv },
-  { name: 'Wind', icon: Wind },
-  { name: 'Car', icon: Car },
-  { name: 'Utensils', icon: Utensils },
-  { name: 'Waves', icon: Waves },
-  { name: 'Trees', icon: Trees },
-  { name: 'ShieldCheck', icon: ShieldCheck },
-  { name: 'Flame', icon: Flame },
-  { name: 'ChefHat', icon: ChefHat }
+const ICON_MAP = {
+  Wifi, Tv, Wind, Car, Utensils, Waves, Trees,
+  ShieldCheck, Flame, ChefHat, Coffee, Dumbbell,
+  Bath, Music, Zap, Package
+};
+
+const ICON_OPTIONS = Object.keys(ICON_MAP);
+
+const CATEGORIES = [
+  'Basic', 'Kitchen', 'Outdoor', 'Safety', 'Luxury',
+  'View', 'Fine & Dining', 'Recreation', 'Wellness', 'Business'
 ];
 
-const categories = ['Basic', 'Kitchen', 'Outdoor', 'Safety', 'Luxury', 'View', 'Fine & Dining', 'Recreation', 'Wellness', 'Business'];
+const SCOPES = ['All', 'Villa', 'Hotel', 'Homestay', 'Resort'];
+
+const CATEGORY_ICON_MAP = {
+  'Basic':       'Wifi',
+  'Kitchen':     'ChefHat',
+  'Outdoor':     'Trees',
+  'Safety':      'ShieldCheck',
+  'Luxury':      'Star',
+  'View':        'Trees',
+  'Fine & Dining': 'Utensils',
+  'Recreation':  'Waves',
+  'Wellness':    'Bath',
+  'Business':    'Tv',
+};
+
+const SCOPE_COLORS = {
+  All:      { bg: '#EFF6FF', color: '#3B82F6' },
+  Villa:    { bg: '#FEF9C3', color: '#CA8A04' },
+  Hotel:    { bg: '#F3E8FF', color: '#9333EA' },
+  Homestay: { bg: '#ECFDF5', color: '#059669' },
+  Resort:   { bg: '#FEE2E2', color: '#DC2626' },
+};
+
+const BLANK_FORM = {
+  id: '',
+  amenitiesName: '',
+  amenitiesCategory: 'Basic',
+  availabilityScope: 'All',
+  icon: 'Wifi',
+  status: 'Active'
+};
+
+function getIconComp(iconName, cat) {
+  const name = iconName || CATEGORY_ICON_MAP[cat] || 'Wifi';
+  const Comp = ICON_MAP[name] || Wifi;
+  return <Comp size={15} style={{ color: 'var(--primary)' }} />;
+}
+
+const API = 'http://localhost:5000/api/admin/amenities';
 
 export default function AmenitiesMaster() {
   const [amenities, setAmenities] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    id: '',
-    amenitiesName: '',
-    amenitiesCategory: 'Basic',
-    availabilityScope: 'All',
-    checkIn: '12:00 PM',
-    checkOut: '11:00 AM',
-    offer: 'None',
-    status: 'Active'
-  });
+  const [formData, setFormData] = useState({ ...BLANK_FORM });
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState('All');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  /* ─── helpers ─────────────────────────────────────── */
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const fetchAmenities = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/masters/amenities');
+      const res = await fetch(API);
       const data = await res.json();
-      if (Array.isArray(data)) {
-        setAmenities(data);
-      }
+      if (Array.isArray(data)) setAmenities(data);
     } catch (err) {
       console.error('Error fetching amenities:', err);
     } finally {
@@ -50,231 +89,234 @@ export default function AmenitiesMaster() {
     }
   };
 
-  useEffect(() => {
-    fetchAmenities();
-  }, []);
+  useEffect(() => { fetchAmenities(); }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  /* auto-suggest icon when category changes */
+  const handleCategoryChange = (e) => {
+    const cat = e.target.value;
+    const suggestedIcon = CATEGORY_ICON_MAP[cat] || formData.icon;
+    setFormData(prev => ({ ...prev, amenitiesCategory: cat, icon: suggestedIcon }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.amenitiesName) {
-      alert('Please fill out Amenity Name.');
+    if (!formData.amenitiesName.trim()) {
+      showToast('Amenity name is required.', 'error');
       return;
     }
-
+    const payload = {
+      amenitiesName: formData.amenitiesName.trim(),
+      amenitiesCategory: formData.amenitiesCategory,
+      availabilityScope: formData.availabilityScope,
+      icon: formData.icon,
+      status: formData.status,
+    };
     try {
       if (isEditing) {
-        const res = await fetch(`http://localhost:5000/api/masters/amenities/${formData.id}`, {
+        await fetch(`${API}/${formData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         });
-        if (res.ok) fetchAmenities();
+        showToast('Amenity updated successfully!');
         setIsEditing(false);
       } else {
-        const res = await fetch('http://localhost:5000/api/masters/amenities', {
+        await fetch(API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         });
-        if (res.ok) fetchAmenities();
+        showToast('Amenity added successfully!');
       }
-
-      setFormData({
-        id: '',
-        amenitiesName: '',
-        amenitiesCategory: 'Basic',
-        availabilityScope: 'All',
-        checkIn: '12:00 PM',
-        checkOut: '11:00 AM',
-        offer: 'None',
-        status: 'Active'
-      });
+      setFormData({ ...BLANK_FORM });
+      fetchAmenities();
     } catch (err) {
-      console.error('Error submitting amenity:', err);
+      showToast('Error saving amenity.', 'error');
     }
   };
 
-  const handleEdit = (amObj) => {
+  const handleEdit = (am) => {
     setFormData({
-      id: amObj._id,
-      amenitiesName: amObj.amenitiesName,
-      amenitiesCategory: amObj.amenitiesCategory || 'Basic',
-      availabilityScope: amObj.availabilityScope || 'All',
-      checkIn: amObj.checkIn || '12:00 PM',
-      checkOut: amObj.checkOut || '11:00 AM',
-      offer: amObj.offer || 'None',
-      status: amObj.status || 'Active'
+      id: am._id,
+      amenitiesName: am.amenitiesName,
+      amenitiesCategory: am.amenitiesCategory || 'Basic',
+      availabilityScope: am.availabilityScope || 'All',
+      icon: am.icon || CATEGORY_ICON_MAP[am.amenitiesCategory] || 'Wifi',
+      status: am.status || 'Active'
     });
     setIsEditing(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const triggerDelete = (id) => {
-    setDeleteTargetId(id);
-    setShowDeleteModal(true);
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setFormData({ ...BLANK_FORM });
   };
+
+  const triggerDelete = (id) => { setDeleteTargetId(id); setShowDeleteModal(true); };
 
   const confirmDelete = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/masters/amenities/${deleteTargetId}`, { method: 'DELETE' });
-      if (res.ok) fetchAmenities();
+      await fetch(`${API}/${deleteTargetId}`, { method: 'DELETE' });
+      showToast('Amenity deleted.');
+      fetchAmenities();
     } catch (err) {
-      console.error('Error deleting amenity:', err);
+      showToast('Error deleting amenity.', 'error');
     } finally {
       setShowDeleteModal(false);
       setDeleteTargetId(null);
     }
   };
 
-  const getIconComponent = (cat) => {
-    let Comp = Wifi;
-    if (cat === 'Recreation' || cat === 'Outdoor') Comp = Waves;
-    else if (cat === 'Fine & Dining' || cat === 'Kitchen') Comp = Utensils;
-    else if (cat === 'Wellness') Comp = Trees;
-    else if (cat === 'Business') Comp = Tv;
-    else if (cat === 'Safety') Comp = ShieldCheck;
-    return <Comp size={16} className="text-emerald-700" style={{ color: 'var(--primary)' }} />;
-  };
-
+  /* ─── filtered list ───────────────────────────────── */
   const filteredAmenities = amenities.filter(am => {
-    const matchesCategory = activeCategoryFilter === 'All' || am.amenitiesCategory === activeCategoryFilter;
-    const matchesSearch = (am.amenitiesName || '').toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
+    const matchCat = activeCategoryFilter === 'All' || am.amenitiesCategory === activeCategoryFilter;
+    const matchSearch = (am.amenitiesName || '').toLowerCase().includes(searchTerm.toLowerCase());
+    return matchCat && matchSearch;
   });
+
+  const scopeStyle = (scope) => SCOPE_COLORS[scope] || SCOPE_COLORS.All;
 
   return (
     <div className="fade-in">
-      {/* Breadcrumbs */}
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 9999,
+          background: toast.type === 'error' ? '#FEE2E2' : '#DCFCE7',
+          color: toast.type === 'error' ? '#DC2626' : '#166534',
+          border: `1px solid ${toast.type === 'error' ? '#FECACA' : '#BBF7D0'}`,
+          borderRadius: 10, padding: '12px 20px', fontWeight: 600,
+          fontSize: 13, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+          display: 'flex', alignItems: 'center', gap: 8
+        }}>
+          <Info size={16} /> {toast.msg}
+        </div>
+      )}
+
+      {/* Breadcrumb */}
       <div className="props-breadcrumb" style={{ margin: '0 39px 12px' }}>
         Masters &gt; <span>Amenities Master</span>
       </div>
 
-      {/* Form Container */}
+      {/* ─── Form Card ─────────────────────────────── */}
       <div className="dash-section" style={{ marginBottom: 16 }}>
         <form onSubmit={handleSubmit} className="master-form-card" style={{ margin: 0 }}>
           <div className="master-form-header">
             <div className="master-form-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Star size={18} style={{ color: 'var(--primary)' }} />
-              {isEditing ? 'Modify Amenity' : 'Add New Amenity Context'}
+              {isEditing ? 'Modify Amenity' : 'Add New Amenity'}
             </div>
-            <div className="master-form-actions">
+            <div className="master-form-actions" style={{ display: 'flex', gap: 8 }}>
+              {isEditing && (
+                <button type="button" onClick={cancelEdit} className="btn-outline-green"
+                  style={{ cursor: 'pointer', padding: '8px 16px', fontSize: 12 }}>
+                  Cancel
+                </button>
+              )}
               <button type="submit" className="btn-solid-green" style={{ cursor: 'pointer' }}>
                 {isEditing ? 'Update Amenity' : 'Add Amenity'}
               </button>
             </div>
           </div>
 
-          <div className="form-grid-4" style={{ marginBottom: 0 }}>
+          {/* Form Row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', gap: 16, marginBottom: 0 }}>
+            {/* Name */}
             <div className="form-group">
-              <label className="form-label">Amenity Name*</label>
-              <input 
-                type="text" 
-                name="amenitiesName"
-                value={formData.amenitiesName}
-                onChange={handleChange}
-                placeholder="e.g. WiFi / Heated Pool" 
-                className="form-input"
-                required
+              <label className="form-label">Amenity Name *</label>
+              <input
+                type="text" name="amenitiesName"
+                value={formData.amenitiesName} onChange={handleChange}
+                placeholder="e.g. Private Heated Pool"
+                className="form-input" required
               />
             </div>
 
+            {/* Category */}
             <div className="form-group">
-              <label className="form-label">Amenity Category*</label>
-              <select 
-                name="amenitiesCategory"
-                value={formData.amenitiesCategory}
-                onChange={handleChange}
-                className="form-select"
-              >
-                {categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
+              <label className="form-label">Category *</label>
+              <select name="amenitiesCategory" value={formData.amenitiesCategory}
+                onChange={handleCategoryChange} className="form-select">
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
 
+            {/* Scope */}
             <div className="form-group">
-              <label className="form-label">Scope / Type*</label>
-              <select 
-                name="availabilityScope"
-                value={formData.availabilityScope}
-                onChange={handleChange}
-                className="form-select"
-              >
-                <option value="All">All</option>
-                <option value="Villa">Villa</option>
-                <option value="Resort">Resort</option>
-                <option value="Homestay">Homestay</option>
+              <label className="form-label">Scope / Property Type *</label>
+              <select name="availabilityScope" value={formData.availabilityScope}
+                onChange={handleChange} className="form-select">
+                {SCOPES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
+            {/* Icon */}
             <div className="form-group">
-              <label className="form-label">Status*</label>
-              <select 
-                name="status"
-                value={formData.status}
-                onChange={handleChange}
-                className="form-select"
-              >
+              <label className="form-label">Icon</label>
+              <select name="icon" value={formData.icon}
+                onChange={handleChange} className="form-select">
+                {ICON_OPTIONS.map(i => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </div>
+
+            {/* Status */}
+            <div className="form-group">
+              <label className="form-label">Status *</label>
+              <select name="status" value={formData.status}
+                onChange={handleChange} className="form-select">
                 <option value="Active">Active</option>
                 <option value="Inactive">Inactive</option>
               </select>
             </div>
           </div>
-
-          {isEditing && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
-              <button 
-                type="button" 
-                onClick={() => {
-                  setIsEditing(false);
-                  setFormData({ id: '', amenitiesName: '', amenitiesCategory: 'Basic', availabilityScope: 'All', checkIn: '12:00 PM', checkOut: '11:00 AM', offer: 'None', status: 'Active' });
-                }}
-                className="btn-outline-green"
-                style={{ cursor: 'pointer', padding: '8px 16px', fontSize: 12 }}
-              >
-                Cancel Edit
-              </button>
-            </div>
-          )}
         </form>
       </div>
 
-      {/* Category Selection Filter Bar */}
-      <div style={{ margin: '24px 39px 12px', display: 'flex', flexWrap: 'wrap', gap: '8px', background: '#FFFFFF', padding: '6px 12px', borderRadius: '12px', border: '1px solid #E5E7EB', width: 'max-content' }}>
-        <button 
-          onClick={() => setActiveCategoryFilter('All')}
-          style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: 'pointer', background: activeCategoryFilter === 'All' ? 'var(--primary)' : 'transparent', color: activeCategoryFilter === 'All' ? '#fff' : '#6B7280' }}
-        >
-          All Categories
-        </button>
-        {categories.map(cat => (
-          <button 
-            key={cat}
-            onClick={() => setActiveCategoryFilter(cat)}
-            style={{ padding: '6px 12px', fontSize: '11.5px', fontWeight: 'bold', border: 'none', borderRadius: '8px', cursor: 'pointer', background: activeCategoryFilter === cat ? 'var(--primary)' : 'transparent', color: activeCategoryFilter === cat ? '#fff' : '#6B7280' }}
-          >
-            {cat}
+      {/* ─── Category Filter Tabs ──────────────────── */}
+      <div style={{
+        margin: '0 39px 16px',
+        display: 'flex', flexWrap: 'wrap', gap: 6,
+        background: '#fff', padding: '8px 12px',
+        borderRadius: 12, border: '1px solid #E5E7EB',
+        width: 'max-content', maxWidth: '100%'
+      }}>
+        {['All', ...CATEGORIES].map(cat => (
+          <button key={cat} onClick={() => setActiveCategoryFilter(cat)}
+            style={{
+              padding: '5px 12px', fontSize: 11.5, fontWeight: 600,
+              border: 'none', borderRadius: 8, cursor: 'pointer',
+              background: activeCategoryFilter === cat ? 'var(--primary)' : 'transparent',
+              color: activeCategoryFilter === cat ? '#fff' : '#6B7280',
+              transition: 'all 0.15s ease'
+            }}>
+            {cat === 'All' ? 'All Categories' : cat}
           </button>
         ))}
       </div>
 
-      {/* Table Section */}
+      {/* ─── Table ────────────────────────────────── */}
       <div className="table-section">
         <div className="table-header">
-          <div className="table-title">Existing Amenities ({filteredAmenities.length})</div>
+          <div className="table-title">
+            Amenities
+            <span style={{
+              marginLeft: 8, background: 'var(--primary-light)',
+              color: 'var(--primary)', borderRadius: 20, padding: '2px 10px',
+              fontSize: 12, fontWeight: 700
+            }}>{filteredAmenities.length}</span>
+          </div>
           <div className="table-header-right">
             <div className="props-search-wrap">
-              <Search size={16} />
-              <input 
-                type="text" 
-                placeholder="Search amenity..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+              <Search size={15} />
+              <input
+                type="text" placeholder="Search amenity..."
+                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
               />
             </div>
           </div>
@@ -284,23 +326,30 @@ export default function AmenitiesMaster() {
           <table className="data-table">
             <thead>
               <tr>
-                <th style={{ width: '64px', textAlign: 'center' }}>Icon</th>
+                <th style={{ width: 56, textAlign: 'center' }}>Icon</th>
                 <th>Amenity Name</th>
-                <th>Assigned Category</th>
+                <th>Category</th>
                 <th>Scope</th>
                 <th>Status</th>
-                <th style={{ textAlign: 'right', paddingRight: '24px' }}>Actions</th>
+                <th style={{ textAlign: 'right', paddingRight: 24 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: '#6B7280' }}>Loading amenities...</td></tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#9CA3AF' }}>
+                  Loading amenities...
+                </td></tr>
               ) : filteredAmenities.length > 0 ? (
-                filteredAmenities.map((am) => (
+                filteredAmenities.map(am => (
                   <tr key={am._id}>
                     <td style={{ textAlign: 'center' }}>
-                      <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: 'auto' }}>
-                        {getIconComponent(am.amenitiesCategory)}
+                      <div style={{
+                        width: 32, height: 32, borderRadius: '50%',
+                        background: 'var(--primary-light)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        margin: 'auto'
+                      }}>
+                        {getIconComp(am.icon, am.amenitiesCategory)}
                       </div>
                     </td>
                     <td style={{ fontWeight: 700, color: '#111827' }}>{am.amenitiesName}</td>
@@ -309,26 +358,29 @@ export default function AmenitiesMaster() {
                         {am.amenitiesCategory || 'Basic'}
                       </span>
                     </td>
-                    <td style={{ color: '#6B7280' }}>{am.availabilityScope || 'All'}</td>
                     <td>
-                      <span className={`status-pill ${am.status ? am.status.toLowerCase() : 'active'}`}>
+                      <span style={{
+                        display: 'inline-block', padding: '3px 10px', borderRadius: 20,
+                        fontSize: 11, fontWeight: 600,
+                        background: scopeStyle(am.availabilityScope).bg,
+                        color: scopeStyle(am.availabilityScope).color
+                      }}>
+                        {am.availabilityScope || 'All'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`status-pill ${(am.status || 'active').toLowerCase()}`}>
                         {am.status || 'Active'}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'right', paddingRight: '24px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                        <button 
-                          onClick={() => handleEdit(am)}
-                          title="Edit Amenity"
-                          style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 4 }}
-                        >
+                    <td style={{ textAlign: 'right', paddingRight: 24 }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                        <button onClick={() => handleEdit(am)} title="Edit"
+                          style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', padding: 4 }}>
                           <Edit2 size={14} />
                         </button>
-                        <button 
-                          onClick={() => triggerDelete(am._id)}
-                          title="Delete Amenity"
-                          style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}
-                        >
+                        <button onClick={() => triggerDelete(am._id)} title="Delete"
+                          style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: 4 }}>
                           <Trash2 size={14} />
                         </button>
                       </div>
@@ -336,44 +388,68 @@ export default function AmenitiesMaster() {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '24px', color: '#9CA3AF' }}>
-                    No amenities found matching your search.
-                  </td>
-                </tr>
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: '#9CA3AF' }}>
+                  No amenities found. Add your first amenity above.
+                </td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* ─── Scope Legend ─────────────────────────── */}
+      <div style={{ margin: '16px 39px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>SCOPE LEGEND:</span>
+        {SCOPES.map(s => (
+          <span key={s} style={{
+            fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20,
+            background: scopeStyle(s).bg, color: scopeStyle(s).color
+          }}>{s}</span>
+        ))}
+        <span style={{ fontSize: 11, color: '#6B7280', marginLeft: 4 }}>
+          — Scope controls which Owner form dropdowns show this amenity. "All" appears everywhere.
+        </span>
+      </div>
+
+      {/* ─── Delete Modal ──────────────────────────── */}
       {showDeleteModal && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', items: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
-          <div style={{ backgroundColor: '#fff', borderRadius: '16px', maxWidth: '400px', width: '100%', padding: '24px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', border: '1px solid #E5E7EB', margin: 'auto' }}>
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-              <div style={{ padding: '10px', backgroundColor: '#FEE2E2', borderRadius: '50%', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <AlertTriangle size={24} />
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 1000, padding: 16
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: 16, maxWidth: 400, width: '100%',
+            padding: 28, boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+            border: '1px solid #E5E7EB'
+          }}>
+            <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+              <div style={{
+                padding: 10, background: '#FEE2E2', borderRadius: '50%',
+                color: '#EF4444', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <AlertTriangle size={22} />
               </div>
               <div>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#111827', margin: 0 }}>Delete Amenity</h3>
-                <p style={{ fontSize: '13px', color: '#6B7280', marginTop: '8px', lineHeight: 1.5 }}>
-                  Are you absolutely sure you want to delete this amenity? This may impact active room catalogs.
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#111827', margin: 0 }}>Delete Amenity</h3>
+                <p style={{ fontSize: 13, color: '#6B7280', marginTop: 8, lineHeight: 1.6 }}>
+                  This will remove the amenity from the platform. Owner forms and guest filters will no longer show it.
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-              <button 
-                onClick={() => setShowDeleteModal(false)}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+              <button onClick={() => setShowDeleteModal(false)}
                 className="btn-outline-green"
-                style={{ cursor: 'pointer', padding: '8px 16px', fontSize: 13 }}
-              >
+                style={{ cursor: 'pointer', padding: '8px 16px', fontSize: 13 }}>
                 Cancel
               </button>
-              <button 
-                onClick={confirmDelete}
-                style={{ cursor: 'pointer', backgroundColor: '#EF4444', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: 13, fontWeight: 600 }}
-              >
+              <button onClick={confirmDelete}
+                style={{
+                  cursor: 'pointer', background: '#EF4444', color: '#fff',
+                  border: 'none', borderRadius: 8, padding: '8px 18px',
+                  fontSize: 13, fontWeight: 600
+                }}>
                 Yes, Delete
               </button>
             </div>

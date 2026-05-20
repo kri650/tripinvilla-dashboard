@@ -29,7 +29,7 @@ export default function LocationMaster() {
   const fetchLocations = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/master/locations');
+      const res = await fetch('http://localhost:5000/api/admin/locations');
       const data = await res.json();
       if (Array.isArray(data)) setLocations(data);
     } catch (err) {
@@ -48,7 +48,7 @@ export default function LocationMaster() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAddLandmark = () => {
+  const handleAddLandmark = async () => {
     if (!currentLandmarkName) {
       alert('Please provide a landmark name.');
       return;
@@ -58,12 +58,42 @@ export default function LocationMaster() {
       landmarkPopularity: currentLandmarkPop,
       landmarkImageUrl: currentLandmarkImg || 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=100&q=80'
     };
-    setLandmarks(prev => [...prev, newL]);
+    
+    if (isEditing && formData.id) {
+      try {
+        const res = await fetch(`http://localhost:5000/api/admin/locations/${formData.id}/landmarks`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newL)
+        });
+        if (res.ok) {
+          const addedL = await res.json();
+          setLandmarks(prev => [...prev, addedL]);
+          fetchLocations(); // Refresh data table
+        }
+      } catch (err) {
+        console.error('Error adding landmark directly:', err);
+      }
+    } else {
+      setLandmarks(prev => [...prev, newL]);
+    }
+    
     setCurrentLandmarkName('');
     setCurrentLandmarkImg('');
   };
 
-  const handleRemoveLandmark = (index) => {
+  const handleRemoveLandmark = async (index) => {
+    const land = landmarks[index];
+    if (isEditing && formData.id && land._id) {
+      try {
+        const res = await fetch(`http://localhost:5000/api/admin/landmarks/${land._id}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchLocations();
+        }
+      } catch (err) {
+        console.error('Error removing landmark directly:', err);
+      }
+    }
     setLandmarks(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -78,7 +108,7 @@ export default function LocationMaster() {
       const payload = { ...formData, landmarks };
 
       if (isEditing) {
-        const res = await fetch(`http://localhost:5000/api/master/locations/${formData.id}`, {
+        const res = await fetch(`http://localhost:5000/api/admin/locations/${formData.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -86,7 +116,7 @@ export default function LocationMaster() {
         if (res.ok) fetchLocations();
         setIsEditing(false);
       } else {
-        const res = await fetch('http://localhost:5000/api/master/locations', {
+        const res = await fetch('http://localhost:5000/api/admin/locations', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -129,7 +159,7 @@ export default function LocationMaster() {
 
   const confirmDelete = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/api/master/locations/${deleteTargetId}`, { method: 'DELETE' });
+      const res = await fetch(`http://localhost:5000/api/admin/locations/${deleteTargetId}`, { method: 'DELETE' });
       if (res.ok) fetchLocations();
     } catch (err) {
       console.error('Error deleting location:', err);
