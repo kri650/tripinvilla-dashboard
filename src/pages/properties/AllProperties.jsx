@@ -1,107 +1,169 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, Calendar, ChevronDown, ClipboardList, Clock, XCircle, CheckCircle2, MoreVertical, Plus } from 'lucide-react';
+import { Search, Filter, Calendar, ChevronDown, ClipboardList, Clock, XCircle, CheckCircle2, MoreVertical, Plus, X } from 'lucide-react';
+
+const API = 'http://localhost:5000/api';
 
 export default function AllProperties() {
   const [properties, setProperties] = useState([]);
-  const [stats, setStats] = useState({ totalProperties: 1540, activeProperties: 224, inactiveAdmin: 100 });
+  const [stats, setStats] = useState({ totalProperties: 0, activeProperties: 0, inactiveAdmin: 0 });
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [propertyType, setPropertyType] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newProp, setNewProp] = useState({ name: '', location: '', type: 'Villa', price: 5000, rooms: 3 });
+
+  // Add Panel State
+  const [showPanel, setShowPanel] = useState(false);
+  const [owners, setOwners] = useState([]);
+  const [countries, setCountries] = useState([]);
+  const [states, setStates] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [amenitiesList, setAmenitiesList] = useState([]);
+  const [experiencesList, setExperiencesList] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [form, setForm] = useState({
+    name: '', type: 'Villa', price: '', bedRooms: '', bathRooms: '',
+    ownerId: '', countryId: '', stateId: '', cityId: '',
+    location: '', about: '', checkIn: '11:00', checkOut: '10:00',
+    rules: '', amenities: [], experiences: [], images: []
+  });
+
+  // Dropdown menus
+  const [actionMenu, setActionMenu] = useState(null); // propertyId
 
   const fetchProperties = async () => {
     setLoading(true);
     try {
-      const queryParams = new URLSearchParams();
-      if (searchQuery) queryParams.append('search', searchQuery);
-      if (propertyType) queryParams.append('type', propertyType);
-      if (dateFrom) queryParams.append('date', dateFrom);
-
-      const res = await fetch(`http://localhost:5000/api/properties?${queryParams.toString()}`);
+      const params = new URLSearchParams();
+      if (searchQuery) params.append('search', searchQuery);
+      if (propertyType) params.append('type', propertyType);
+      if (dateFrom) params.append('date', dateFrom);
+      const res = await fetch(`${API}/properties?${params.toString()}`);
       const data = await res.json();
-      if (data && data.properties) {
+      if (data?.properties) {
         setProperties(data.properties);
         if (data.stats) setStats(data.stats);
       }
-    } catch (err) {
-      console.error('Failed to fetch properties:', err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    fetchProperties();
-  }, []);
-
-  const handleFilter = () => {
-    fetchProperties();
-  };
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-  };
-
-  const handleSearchKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      fetchProperties();
-    }
-  };
-
-  const handleAddProperty = async (e) => {
-    e.preventDefault();
+  const fetchPanelData = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/properties', {
+      const [ownersRes, countriesRes, amenRes, expRes] = await Promise.all([
+        fetch(`${API}/owners`).then(r => r.json()),
+        fetch(`${API}/admin/countries/active`).then(r => r.json()),
+        fetch(`${API}/admin/amenities/active`).then(r => r.json()),
+        fetch(`${API}/master/experiences`).then(r => r.json())
+      ]);
+      if (Array.isArray(ownersRes)) setOwners(ownersRes);
+      if (Array.isArray(countriesRes)) setCountries(countriesRes);
+      if (Array.isArray(amenRes)) setAmenitiesList(amenRes);
+      if (Array.isArray(expRes)) setExperiencesList(expRes);
+    } catch (err) { console.error('Panel data error:', err); }
+  };
+
+  const fetchStates = async (countryId) => {
+    try {
+      const res = await fetch(`${API}/admin/states/active?country=${countryId}`);
+      const data = await res.json();
+      if (Array.isArray(data)) { setStates(data); setCities([]); }
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchCities = async (stateId) => {
+    try {
+      const res = await fetch(`${API}/admin/cities/active?state=${stateId}`);
+      const data = await res.json();
+      if (Array.isArray(data)) setCities(data);
+    } catch (err) { console.error(err); }
+  };
+
+  useEffect(() => { fetchProperties(); }, []);
+
+  const openPanel = () => { fetchPanelData(); setShowPanel(true); };
+  const closePanel = () => { setShowPanel(false); resetForm(); };
+
+  const resetForm = () => setForm({
+    name: '', type: 'Villa', price: '', bedRooms: '', bathRooms: '',
+    ownerId: '', countryId: '', stateId: '', cityId: '',
+    location: '', about: '', checkIn: '11:00', checkOut: '10:00',
+    rules: '', amenities: [], experiences: [], images: []
+  });
+
+  const handleFormChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    if (field === 'countryId') fetchStates(value);
+    if (field === 'stateId') fetchCities(value);
+  };
+
+  const toggleCheckbox = (field, value) => {
+    setForm(prev => ({
+      ...prev,
+      [field]: prev[field].includes(value)
+        ? prev[field].filter(v => v !== value)
+        : [...prev[field], value]
+    }));
+  };
+
+  const handleImageAdd = (e) => {
+    const url = e.target.value.trim();
+    if (url && form.images.length < 10) {
+      setForm(prev => ({ ...prev, images: [...prev.images, url] }));
+      e.target.value = '';
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.name || !form.ownerId) { alert('Property name and owner are required.'); return; }
+    setSubmitting(true);
+    try {
+      const selectedCity = cities.find(c => c._id === form.cityId);
+      const selectedState = states.find(s => s._id === form.stateId);
+      const payload = {
+        name: form.name, type: form.type,
+        price: Number(form.price), bedRooms: Number(form.bedRooms),
+        bathRooms: Number(form.bathRooms), owner: form.ownerId,
+        city: selectedCity?.cityName || '', state: selectedState?.stateName || '',
+        location: form.location, about: form.about,
+        checkIn: form.checkIn, checkOut: form.checkOut,
+        rules: form.rules, amenities: form.amenities,
+        experiences: form.experiences, images: form.images,
+        status: 'Active'
+      };
+      const res = await fetch(`${API}/properties`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newProp.name,
-          location: newProp.location,
-          type: newProp.type,
-          price: Number(newProp.price),
-          bedRooms: Number(newProp.rooms),
-          status: 'Active',
-          rating: 4.8,
-          totalBookings: 12
-        })
+        body: JSON.stringify(payload)
       });
-      if (res.ok) {
-        setShowAddModal(false);
-        setNewProp({ name: '', location: '', type: 'Villa', price: 5000, rooms: 3 });
-        fetchProperties();
-      }
-    } catch (err) {
-      console.error('Error adding property:', err);
-    }
+      if (res.ok) { closePanel(); fetchProperties(); }
+      else { const d = await res.json(); alert(d.message || 'Failed to add property'); }
+    } catch (err) { alert('Error adding property'); }
+    finally { setSubmitting(false); }
   };
 
   const toggleStatus = async (id, currentStatus) => {
-    const nextStatus = currentStatus === 'Active' ? 'Inactive Admin' : currentStatus === 'Inactive Admin' ? 'Inactive' : 'Active';
+    const nextStatus = currentStatus === 'Active' ? 'Inactive Admin' : 'Active';
     try {
-      const res = await fetch(`http://localhost:5000/api/properties/${id}/status`, {
+      await fetch(`${API}/properties/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus })
       });
-      if (res.ok) {
-        fetchProperties();
-      }
-    } catch (err) {
-      console.error('Error toggling status:', err);
-    }
+      fetchProperties();
+    } catch (err) { console.error(err); }
+    setActionMenu(null);
   };
 
   return (
-    <div className="fade-in">
+    <div className="fade-in" onClick={() => setActionMenu(null)}>
       {/* Breadcrumb */}
       <div className="props-breadcrumb" style={{ margin: '0 39px 12px' }}>
         Property Management &gt; <span>All Properties</span>
       </div>
 
-      {/* Stats Section */}
+      {/* Stats */}
       <div className="dash-section" style={{ minHeight: 162, boxSizing: 'border-box', justifyContent: 'center', marginBottom: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
           <div className="props-stat-card" style={{ margin: 0, borderRadius: 12 }}>
@@ -119,137 +181,102 @@ export default function AllProperties() {
             </div>
           </div>
           <div className="props-stat-card" style={{ margin: 0, borderRadius: 12 }}>
-            <div className="props-stat-icon-wrap red"><CheckCircle2 strokeWidth={2.5} /></div>
+            <div className="props-stat-icon-wrap red"><XCircle strokeWidth={2.5} /></div>
             <div className="props-stat-content">
-              <div className="props-stat-label">Inactive Admin</div>
+              <div className="props-stat-label">Inactive (Admin)</div>
               <div className="props-stat-value">{stats.inactiveAdmin}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Toolbar and Table Section */}
+      {/* Toolbar + Table */}
       <div className="dash-section" style={{ marginBottom: 24, gap: 16 }}>
-        
-        {/* Toolbar */}
         <div className="chart-card" style={{ padding: '16px 20px', borderRadius: 12 }}>
           <div className="props-table-toolbar" style={{ margin: 0, borderBottom: 'none' }}>
             <div className="props-table-title">All Properties</div>
             <div className="props-table-actions">
-              
               <div className="props-filter-select" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}>
                 <Calendar size={14} style={{ color: '#6B7280' }} />
-                <input 
-                  type="date" 
-                  value={dateFrom} 
-                  onChange={e => setDateFrom(e.target.value)} 
-                  title="Date From"
-                  style={{ border: 'none', background: 'transparent', outline: 'none', color: '#374151', fontSize: 13, cursor: 'pointer' }} 
-                />
+                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', outline: 'none', color: '#374151', fontSize: 13, cursor: 'pointer' }} />
               </div>
-
               <div className="props-filter-select" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}>
-                <Calendar size={14} style={{ color: '#6B7280' }} />
-                <input 
-                  type="date" 
-                  value={dateTo} 
-                  onChange={e => setDateTo(e.target.value)} 
-                  title="Date To"
-                  style={{ border: 'none', background: 'transparent', outline: 'none', color: '#374151', fontSize: 13, cursor: 'pointer' }} 
-                />
-              </div>
-
-              <div className="props-filter-select" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px' }}>
-                <select 
-                  value={propertyType} 
-                  onChange={e => setPropertyType(e.target.value)}
-                  style={{ border: 'none', background: 'transparent', outline: 'none', color: '#374151', fontSize: 13, cursor: 'pointer', paddingRight: 4 }}
-                >
+                <select value={propertyType} onChange={e => setPropertyType(e.target.value)}
+                  style={{ border: 'none', background: 'transparent', outline: 'none', color: '#374151', fontSize: 13, cursor: 'pointer' }}>
                   <option value="">All Types</option>
-                  <option value="Villa">Villa</option>
-                  <option value="Homestay">Homestay</option>
-                  <option value="Resort">Resort</option>
-                  <option value="Apartment">Apartment</option>
-                  <option value="Cottage">Cottage</option>
-                  <option value="Others">Others</option>
+                  {['Villa','Homestay','Resort','Apartment','Cottage','Others'].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-
-              <button className="props-btn-filter" onClick={handleFilter} style={{ cursor: 'pointer' }}>
+              <button className="props-btn-filter" onClick={fetchProperties} style={{ cursor: 'pointer' }}>
                 <Filter size={14} /> Filter
               </button>
-
               <div className="props-search-wrap">
                 <Search size={14} />
-                <input 
-                  type="text" 
-                  placeholder="Search properties..." 
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  onKeyDown={handleSearchKeyDown}
-                />
+                <input type="text" placeholder="Search properties..." value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && fetchProperties()} />
               </div>
-
-              <button className="props-btn-add" onClick={() => setShowAddModal(true)} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Plus size={16} /> Add New
+              <button className="props-btn-add" onClick={openPanel} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <Plus size={16} /> Add Property
               </button>
             </div>
           </div>
         </div>
 
-        {/* Table */}
         <div className="chart-card" style={{ padding: 0, overflow: 'hidden', borderRadius: 12 }}>
           <div style={{ overflowX: 'auto' }}>
             <table className="data-table" style={{ whiteSpace: 'nowrap' }}>
               <thead>
                 <tr>
-                  {['Property No','Image','Property Name','Location','Category','Best Room Rate','Rooms','Total Bookings','Cancelled','Rating','Status',''].map((h, i) => (
-                    <th key={i} style={{ color: '#9CA3AF', fontWeight: 500 }}>{h}{h && i < 11 && <ChevronDown size={11} style={{ display: 'inline', marginLeft: 3 }} />}</th>
+                  {['Property No','Image','Property Name','Location','Category','Best Room Rate','Rooms','Total Enquiries','Rating','Status',''].map((h, i) => (
+                    <th key={i} style={{ color: '#9CA3AF', fontWeight: 500 }}>{h}{h && i < 10 && <ChevronDown size={11} style={{ display: 'inline', marginLeft: 3 }} />}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan="12" style={{ textAlign: 'center', padding: '30px 0', color: '#6B7280' }}>Loading properties...</td>
-                  </tr>
+                  <tr><td colSpan="11" style={{ textAlign: 'center', padding: '30px 0', color: '#6B7280' }}>Loading properties...</td></tr>
                 ) : properties.length === 0 ? (
-                  <tr>
-                    <td colSpan="12" style={{ textAlign: 'center', padding: '30px 0', color: '#6B7280' }}>No properties found matching criteria</td>
-                  </tr>
+                  <tr><td colSpan="11" style={{ textAlign: 'center', padding: '30px 0', color: '#6B7280' }}>No properties found</td></tr>
                 ) : (
                   properties.map((p, i) => (
                     <tr key={p._id || i}>
                       <td style={{ color: '#58A429', fontWeight: 600 }}>{p.propertyNo || `PR-${1000 + i}`}</td>
                       <td>
                         <div style={{ width: 40, height: 30, background: '#E5E7EB', borderRadius: 6, overflow: 'hidden' }}>
-                          <img src={p.image || "https://images.unsplash.com/photo-1518780664697-55e3ad937233?auto=format&fit=crop&w=100&q=80"} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                          <img src={p.image || (p.images && p.images[0]) || 'https://images.unsplash.com/photo-1518780664697-55e3ad937233?auto=format&fit=crop&w=100&q=80'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                         </div>
                       </td>
                       <td style={{ color: '#111827', fontWeight: 500 }}>{p.propertyName || p.name}</td>
-                      <td style={{ color: '#6B7280', whiteSpace: 'pre-line', lineHeight: 1.4 }}>{p.location}</td>
+                      <td style={{ color: '#6B7280' }}>{p.city}{p.state ? `, ${p.state}` : ''}</td>
                       <td><span className="category-pill">{p.category || p.type}</span></td>
-                      <td style={{ color: '#111827', fontWeight: 600 }}>{typeof p.bestRoomRate === 'number' ? `₹${p.bestRoomRate.toLocaleString()}` : (p.bestRoomRate || `₹12,000`)}</td>
-                      <td style={{ color: '#6B7280' }}>{p.rooms || p.bedRooms || 3}</td>
-                      <td style={{ color: '#6B7280' }}>{p.totalBookings || 15}</td>
-                      <td style={{ color: '#6B7280' }}>{p.cancelled || 0}</td>
-                      <td style={{ color: '#6B7280' }}>{p.rating || '4.8 Star'}</td>
+                      <td style={{ color: '#111827', fontWeight: 600 }}>₹{(p.bestRoomRate || p.price || 0).toLocaleString()}</td>
+                      <td style={{ color: '#6B7280' }}>{p.rooms || p.bedRooms || '—'}</td>
+                      <td style={{ color: '#6B7280' }}>{p.totalEnquiries ?? 0}</td>
+                      <td style={{ color: '#6B7280' }}>{p.rating || '—'}</td>
                       <td>
-                        <button 
-                          onClick={() => toggleStatus(p._id, p.status)} 
-                          style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}
-                          title="Click to toggle status"
-                        >
-                          {p.status === 'Active' ? (
-                            <span className="status-pill active"><CheckCircle2 size={11} /> Active</span>
-                          ) : p.status === 'Inactive Admin' ? (
-                            <span className="status-pill inactive" style={{ background: '#FEE2E2', color: '#EF4444' }}><XCircle size={11} /> Inactive Admin</span>
-                          ) : (
-                            <span className="status-pill inactive"><XCircle size={11} /> In-Active</span>
-                          )}
+                        <button onClick={() => toggleStatus(p._id, p.status)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer' }}>
+                          {p.status === 'Active'
+                            ? <span className="status-pill active"><CheckCircle2 size={11} /> Active</span>
+                            : <span className="status-pill inactive"><XCircle size={11} /> Inactive</span>}
                         </button>
                       </td>
-                      <td><button className="action-dots" onClick={() => toggleStatus(p._id, p.status)}><MoreVertical size={14} /></button></td>
+                      <td style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+                        <button className="action-dots" onClick={() => setActionMenu(actionMenu === p._id ? null : p._id)}>
+                          <MoreVertical size={14} />
+                        </button>
+                        {actionMenu === p._id && (
+                          <div style={{ position: 'absolute', right: 8, top: 32, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 140 }}>
+                            <button onClick={() => toggleStatus(p._id, p.status)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', fontSize: 13, color: p.status === 'Active' ? '#EF4444' : '#58A429', background: 'none', border: 'none', cursor: 'pointer', borderBottom: '1px solid #F3F4F6' }}>
+                              {p.status === 'Active' ? '⊘ Deactivate' : '✓ Activate'}
+                            </button>
+                            <button onClick={() => setActionMenu(null)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 16px', fontSize: 13, color: '#374151', background: 'none', border: 'none', cursor: 'pointer' }}>
+                              👁 View Details
+                            </button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   ))
                 )}
@@ -259,96 +286,177 @@ export default function AllProperties() {
         </div>
       </div>
 
-      {/* Add New Property Modal */}
-      {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: 28, borderRadius: 16, width: 440, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: 18, fontWeight: 700, color: '#111827' }}>Add New Property</h3>
-            <form onSubmit={handleAddProperty} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Add Property Side Panel */}
+      {showPanel && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex' }}>
+          <div style={{ flex: 1, background: 'rgba(0,0,0,0.4)' }} onClick={closePanel} />
+          <div style={{ width: 680, background: '#fff', height: '100vh', overflowY: 'auto', boxShadow: '-8px 0 40px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column' }}>
+            {/* Panel Header */}
+            <div style={{ padding: '20px 28px', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#fff', zIndex: 10 }}>
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Property Name</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={newProp.name} 
-                  onChange={e => setNewProp({...newProp, name: e.target.value})} 
-                  placeholder="e.g. Blue Lagoon Villa"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1px solid #D1D5DB', borderRadius: 8, outline: 'none', fontSize: 14 }}
-                />
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>Add New Property</h2>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: '#6B7280' }}>Fill all details to list a property under an owner</p>
               </div>
+              <button onClick={closePanel} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}><X size={22} color="#6B7280" /></button>
+            </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Location</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={newProp.location} 
-                  onChange={e => setNewProp({...newProp, location: e.target.value})} 
-                  placeholder="e.g. Candolim, Goa"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1px solid #D1D5DB', borderRadius: 8, outline: 'none', fontSize: 14 }}
-                />
-              </div>
+            {/* Panel Form */}
+            <form onSubmit={handleSubmit} style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {/* Basic Info */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Category</label>
-                  <select 
-                    value={newProp.type} 
-                    onChange={e => setNewProp({...newProp, type: e.target.value})}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1px solid #D1D5DB', borderRadius: 8, outline: 'none', fontSize: 14, background: '#fff' }}
-                  >
-                    <option value="Villa">Villa</option>
-                    <option value="Homestay">Homestay</option>
-                    <option value="Resort">Resort</option>
-                    <option value="Apartment">Apartment</option>
-                    <option value="Cottage">Cottage</option>
+                  <label className="form-label">Property Name *</label>
+                  <input className="form-input" required placeholder="e.g. Whispering Palms Villa" value={form.name} onChange={e => handleFormChange('name', e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Property Type *</label>
+                  <select className="form-select" value={form.type} onChange={e => handleFormChange('type', e.target.value)}>
+                    {['Villa','Homestay','Resort','Apartment','Cottage','Hotel'].map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
+              </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Rooms</label>
-                  <input 
-                    type="number" 
-                    min="1"
-                    required 
-                    value={newProp.rooms} 
-                    onChange={e => setNewProp({...newProp, rooms: e.target.value})} 
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1px solid #D1D5DB', borderRadius: 8, outline: 'none', fontSize: 14 }}
-                  />
+                  <label className="form-label">Price per Night (₹) *</label>
+                  <input className="form-input" type="number" required placeholder="e.g. 8000" value={form.price} onChange={e => handleFormChange('price', e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Bedrooms</label>
+                  <input className="form-input" type="number" placeholder="e.g. 3" value={form.bedRooms} onChange={e => handleFormChange('bedRooms', e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Bathrooms</label>
+                  <input className="form-input" type="number" placeholder="e.g. 2" value={form.bathRooms} onChange={e => handleFormChange('bathRooms', e.target.value)} />
+                </div>
+              </div>
+
+              {/* Owner Selection */}
+              <div>
+                <label className="form-label">Assign to Owner *</label>
+                <select className="form-select" required value={form.ownerId} onChange={e => handleFormChange('ownerId', e.target.value)}>
+                  <option value="">— Select Owner —</option>
+                  {owners.map(o => <option key={o._id} value={o._id}>{o.ownerName || o.name} ({o.email})</option>)}
+                </select>
+              </div>
+
+              {/* Location Cascade */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+                <div>
+                  <label className="form-label">Country</label>
+                  <select className="form-select" value={form.countryId} onChange={e => handleFormChange('countryId', e.target.value)}>
+                    <option value="">— Country —</option>
+                    {countries.map(c => <option key={c._id} value={c._id}>{c.countryName}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">State</label>
+                  <select className="form-select" value={form.stateId} onChange={e => handleFormChange('stateId', e.target.value)}>
+                    <option value="">— State —</option>
+                    {states.map(s => <option key={s._id} value={s._id}>{s.stateName}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">City</label>
+                  <select className="form-select" value={form.cityId} onChange={e => handleFormChange('cityId', e.target.value)}>
+                    <option value="">— City —</option>
+                    {cities.map(c => <option key={c._id} value={c._id}>{c.cityName}</option>)}
+                  </select>
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Best Room Rate (₹)</label>
-                <input 
-                  type="number" 
-                  required 
-                  value={newProp.price} 
-                  onChange={e => setNewProp({...newProp, price: e.target.value})} 
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1px solid #D1D5DB', borderRadius: 8, outline: 'none', fontSize: 14 }}
-                />
+                <label className="form-label">Specific Location / Area</label>
+                <input className="form-input" placeholder="e.g. Calangute Beach Road" value={form.location} onChange={e => handleFormChange('location', e.target.value)} />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 10 }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowAddModal(false)}
-                  style={{ padding: '10px 18px', border: '1px solid #D1D5DB', background: '#fff', color: '#374151', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
-                >
+              {/* Check-in/out */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <label className="form-label">Check-in Time</label>
+                  <input className="form-input" type="time" value={form.checkIn} onChange={e => handleFormChange('checkIn', e.target.value)} />
+                </div>
+                <div>
+                  <label className="form-label">Check-out Time</label>
+                  <input className="form-input" type="time" value={form.checkOut} onChange={e => handleFormChange('checkOut', e.target.value)} />
+                </div>
+              </div>
+
+              {/* About */}
+              <div>
+                <label className="form-label">About Property</label>
+                <textarea className="form-input" rows={3} placeholder="Describe this property..." value={form.about} onChange={e => handleFormChange('about', e.target.value)} style={{ resize: 'vertical' }} />
+              </div>
+
+              {/* Rules */}
+              <div>
+                <label className="form-label">House Rules</label>
+                <textarea className="form-input" rows={2} placeholder="e.g. No smoking, Pets allowed..." value={form.rules} onChange={e => handleFormChange('rules', e.target.value)} style={{ resize: 'vertical' }} />
+              </div>
+
+              {/* Amenities */}
+              {amenitiesList.length > 0 && (
+                <div>
+                  <label className="form-label">Amenities</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, background: '#F9FAFB', borderRadius: 8, padding: '12px 14px', border: '1px solid #E5E7EB' }}>
+                    {amenitiesList.map(a => (
+                      <label key={a._id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', background: form.amenities.includes(a._id) ? '#DCFCE7' : '#fff', border: '1px solid', borderColor: form.amenities.includes(a._id) ? '#58A429' : '#E5E7EB', borderRadius: 6, padding: '4px 10px', transition: 'all 0.15s' }}>
+                        <input type="checkbox" checked={form.amenities.includes(a._id)} onChange={() => toggleCheckbox('amenities', a._id)} style={{ accentColor: '#58A429' }} />
+                        {a.amenitiesName}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Experiences */}
+              {experiencesList.length > 0 && (
+                <div>
+                  <label className="form-label">Unique Experiences</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, background: '#F9FAFB', borderRadius: 8, padding: '12px 14px', border: '1px solid #E5E7EB' }}>
+                    {experiencesList.map(ex => (
+                      <label key={ex._id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', background: form.experiences.includes(ex._id) ? '#EDE9FE' : '#fff', border: '1px solid', borderColor: form.experiences.includes(ex._id) ? '#7C3AED' : '#E5E7EB', borderRadius: 6, padding: '4px 10px', transition: 'all 0.15s' }}>
+                        <input type="checkbox" checked={form.experiences.includes(ex._id)} onChange={() => toggleCheckbox('experiences', ex._id)} style={{ accentColor: '#7C3AED' }} />
+                        {ex.experienceName || ex.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Images */}
+              <div>
+                <label className="form-label">Property Images (paste URL, up to 10)</label>
+                <input className="form-input" type="url" placeholder="Paste image URL and press Enter" onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleImageAdd(e); } }} onBlur={handleImageAdd} />
+                {form.images.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    {form.images.map((img, idx) => (
+                      <div key={idx} style={{ position: 'relative', width: 72, height: 52, borderRadius: 6, overflow: 'hidden', border: '1px solid #E5E7EB' }}>
+                        <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <button type="button" onClick={() => setForm(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== idx) }))}
+                          style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 16, height: 16, color: '#fff', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Submit */}
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
+                <button type="button" onClick={closePanel} style={{ padding: '10px 20px', border: '1px solid #D1D5DB', background: '#fff', color: '#374151', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  style={{ padding: '10px 18px', border: 'none', background: '#58A429', color: '#fff', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Add Property
+                <button type="submit" disabled={submitting} style={{ padding: '10px 24px', border: 'none', background: '#58A429', color: '#fff', borderRadius: 8, fontWeight: 600, cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 14, opacity: submitting ? 0.7 : 1 }}>
+                  {submitting ? 'Saving...' : 'Save Property'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
     </div>
   );
 }

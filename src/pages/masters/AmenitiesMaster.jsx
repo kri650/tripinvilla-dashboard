@@ -46,7 +46,6 @@ const BLANK_FORM = {
   id: '',
   amenitiesName: '',
   amenitiesCategory: 'Basic',
-  availabilityScope: 'All',
   icon: 'Wifi',
   status: 'Active'
 };
@@ -112,7 +111,6 @@ export default function AmenitiesMaster() {
     const payload = {
       amenitiesName: formData.amenitiesName.trim(),
       amenitiesCategory: formData.amenitiesCategory,
-      availabilityScope: formData.availabilityScope,
       icon: formData.icon,
       status: formData.status,
     };
@@ -145,7 +143,6 @@ export default function AmenitiesMaster() {
       id: am._id,
       amenitiesName: am.amenitiesName,
       amenitiesCategory: am.amenitiesCategory || 'Basic',
-      availabilityScope: am.availabilityScope || 'All',
       icon: am.icon || CATEGORY_ICON_MAP[am.amenitiesCategory] || 'Wifi',
       status: am.status || 'Active'
     });
@@ -226,7 +223,7 @@ export default function AmenitiesMaster() {
           </div>
 
           {/* Form Row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.5fr 1fr 1fr', gap: 16, marginBottom: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr 1fr', gap: 16, marginBottom: 0 }}>
             {/* Name */}
             <div className="form-group">
               <label className="form-label">Amenity Name *</label>
@@ -244,15 +241,6 @@ export default function AmenitiesMaster() {
               <select name="amenitiesCategory" value={formData.amenitiesCategory}
                 onChange={handleCategoryChange} className="form-select">
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-
-            {/* Scope */}
-            <div className="form-group">
-              <label className="form-label">Scope / Property Type *</label>
-              <select name="availabilityScope" value={formData.availabilityScope}
-                onChange={handleChange} className="form-select">
-                {SCOPES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
 
@@ -329,7 +317,7 @@ export default function AmenitiesMaster() {
                 <th style={{ width: 56, textAlign: 'center' }}>Icon</th>
                 <th>Amenity Name</th>
                 <th>Category</th>
-                <th>Scope</th>
+                <th style={{ textAlign: 'center' }}>Properties Using</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right', paddingRight: 24 }}>Actions</th>
               </tr>
@@ -358,14 +346,13 @@ export default function AmenitiesMaster() {
                         {am.amenitiesCategory || 'Basic'}
                       </span>
                     </td>
-                    <td>
+                    <td style={{ textAlign: 'center' }}>
                       <span style={{
                         display: 'inline-block', padding: '3px 10px', borderRadius: 20,
-                        fontSize: 11, fontWeight: 600,
-                        background: scopeStyle(am.availabilityScope).bg,
-                        color: scopeStyle(am.availabilityScope).color
+                        fontSize: 12, fontWeight: 700,
+                        background: 'var(--primary-light)', color: 'var(--primary)'
                       }}>
-                        {am.availabilityScope || 'All'}
+                        {am.propertiesCount ?? 0} properties
                       </span>
                     </td>
                     <td>

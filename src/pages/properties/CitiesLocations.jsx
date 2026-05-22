@@ -1,22 +1,18 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, MoreVertical, Calendar, Search, Filter, Plus } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
 
 export default function CitiesLocations() {
   const [cities, setCities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedState, setSelectedState] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newCity, setNewCity] = useState({ cityName: '', stateName: '' });
 
   const fetchCities = async () => {
     setLoading(true);
     try {
       const res = await fetch('http://localhost:5000/api/cities');
       const data = await res.json();
-      if (Array.isArray(data)) {
-        setCities(data);
-      }
+      if (Array.isArray(data)) setCities(data);
     } catch (err) {
       console.error('Error fetching cities:', err);
     } finally {
@@ -24,27 +20,7 @@ export default function CitiesLocations() {
     }
   };
 
-  useEffect(() => {
-    fetchCities();
-  }, []);
-
-  const handleAddCity = async (e) => {
-    e.preventDefault();
-    try {
-      const res = await fetch('http://localhost:5000/api/cities', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCity)
-      });
-      if (res.ok) {
-        setShowAddModal(false);
-        setNewCity({ cityName: '', stateName: '' });
-        fetchCities();
-      }
-    } catch (err) {
-      console.error('Error adding city:', err);
-    }
-  };
+  useEffect(() => { fetchCities(); }, []);
 
   const filteredCities = cities.filter(c => {
     const matchQuery = (c.cityName || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -93,14 +69,6 @@ export default function CitiesLocations() {
                   onChange={e => setSearchQuery(e.target.value)}
                 />
               </div>
-
-              <button 
-                className="props-btn-add" 
-                onClick={() => setShowAddModal(true)}
-                style={{ background: '#58A429', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <Plus size={16} /> Add New Cities
-              </button>
             </div>
           </div>
         </div>
@@ -154,56 +122,6 @@ export default function CitiesLocations() {
         </div>
 
       </div>
-
-      {/* Add New City Modal */}
-      {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: 28, borderRadius: 16, width: 400, boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: 18, fontWeight: 700, color: '#111827' }}>Add New City</h3>
-            <form onSubmit={handleAddCity} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>City Name</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={newCity.cityName} 
-                  onChange={e => setNewCity({...newCity, cityName: e.target.value})} 
-                  placeholder="e.g. Pune"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1px solid #D1D5DB', borderRadius: 8, outline: 'none', fontSize: 14 }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>State Name</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={newCity.stateName} 
-                  onChange={e => setNewCity({...newCity, stateName: e.target.value})} 
-                  placeholder="e.g. Maharashtra"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 14px', border: '1px solid #D1D5DB', borderRadius: 8, outline: 'none', fontSize: 14 }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 10 }}>
-                <button 
-                  type="button" 
-                  onClick={() => setShowAddModal(false)}
-                  style={{ padding: '10px 18px', border: '1px solid #D1D5DB', background: '#fff', color: '#374151', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  style={{ padding: '10px 18px', border: 'none', background: '#58A429', color: '#fff', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Add City
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
     </div>
   );

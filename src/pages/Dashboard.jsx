@@ -3,17 +3,17 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
-import { TrendingUp, TrendingDown, ChevronDown, Calendar, MoreVertical, ChevronsUpDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, ChevronDown, Calendar, MoreVertical, ChevronsUpDown, MessageSquare, Building2, Users, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const CAT_COLORS = ['#9DC8B0', '#E8D5A0', '#2D6A6A', '#F09565', '#F0A0B0', '#C8C8C8'];
 
-function BarTooltip({ active, payload, label }) {
+function EnqTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '7px 12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', fontSize: 12 }}>
       <p style={{ color: '#9CA3AF', marginBottom: 2 }}>{label}</p>
-      <p style={{ fontWeight: 700, color: '#111827' }}>{payload[0].value} bookings</p>
+      <p style={{ fontWeight: 700, color: '#111827' }}>{payload[0].value} enquiries</p>
     </div>
   );
 }
@@ -32,61 +32,68 @@ function Th({ children }) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
-    totalEnquiriesToday: 128,
-    activeProperties: 342,
-    occupancyRate: 76,
-    compareYesterday: { enquiries: "+4.6", properties: "-16.6", occupancy: "+16.6" }
+    totalEnquiriesToday: 0,
+    activeProperties: 0,
+    totalOwners: 0,
+    compareYesterday: { enquiries: '+0.0', properties: '+0.0', owners: '+0.0' }
   });
-  const [bookingsData, setBookingsData] = useState([
-    { month: 'Jan', v: 42 }, { month: 'Feb', v: 67 }, { month: 'Mar', v: 55 },
-    { month: 'Apr', v: 89 }, { month: 'May', v: 74 }, { month: 'Jun', v: 98 },
-    { month: 'Jul', v: 112 }, { month: 'Aug', v: 128 }, { month: 'Sep', v: 95 },
-    { month: 'Oct', v: 108 }, { month: 'Nov', v: 87 }, { month: 'Dec', v: 120 }
+  const [enquiriesChartData, setEnquiriesChartData] = useState([
+    { month: 'Jan', v: 0 }, { month: 'Feb', v: 0 }, { month: 'Mar', v: 0 },
+    { month: 'Apr', v: 0 }, { month: 'May', v: 0 }, { month: 'Jun', v: 0 },
+    { month: 'Jul', v: 0 }, { month: 'Aug', v: 0 }, { month: 'Sep', v: 0 },
+    { month: 'Oct', v: 0 }, { month: 'Nov', v: 0 }, { month: 'Dec', v: 0 }
   ]);
-  const [categoryData, setCategoryData] = useState({
-    total: 14324,
-    categories: [
-      { name: 'Apartments', count: 5820 },
-      { name: 'Resorts',    count: 3104 },
-      { name: 'Villas',     count: 2300 },
-      { name: 'Homestays',  count: 1600 },
-      { name: 'Cottages',   count: 900  },
-      { name: 'Others',     count: 600  }
-    ]
-  });
+  const [categoryData, setCategoryData] = useState({ total: 0, categories: [] });
   const [topProperties, setTopProperties] = useState([]);
   const [enquiries, setEnquiries] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState('2026');
+  const [selectedYear, setSelectedYear] = useState(String(new Date().getFullYear()));
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [statsRes, chartRes, catRes, topRes, enqRes] = await Promise.all([
-          fetch('http://localhost:5000/api/dashboard/stats').then(r => r.json()),
-          fetch('http://localhost:5000/api/dashboard/enquiries-chart').then(r => r.json()),
-          fetch('http://localhost:5000/api/dashboard/property-categories').then(r => r.json()),
-          fetch('http://localhost:5000/api/dashboard/top-properties').then(r => r.json()),
-          fetch('http://localhost:5000/api/dashboard/recent-enquiries').then(r => r.json())
-        ]);
+  const fetchData = async () => {
+    try {
+      const [statsRes, chartRes, catRes, topRes, enqRes] = await Promise.all([
+        fetch('http://localhost:5000/api/dashboard/stats').then(r => r.json()),
+        fetch(`http://localhost:5000/api/dashboard/enquiries-chart?year=${selectedYear}`).then(r => r.json()),
+        fetch('http://localhost:5000/api/dashboard/property-categories').then(r => r.json()),
+        fetch('http://localhost:5000/api/dashboard/top-properties').then(r => r.json()),
+        fetch('http://localhost:5000/api/dashboard/recent-enquiries').then(r => r.json())
+      ]);
 
-        if (statsRes && statsRes.activeProperties) setStats(statsRes);
-        if (chartRes && Array.isArray(chartRes)) {
-          setBookingsData(chartRes.map(item => ({ month: item.month, v: item.count })));
-        }
-        if (catRes && catRes.categories) setCategoryData(catRes);
-        if (topRes && Array.isArray(topRes)) setTopProperties(topRes);
-        if (enqRes && Array.isArray(enqRes)) setEnquiries(enqRes);
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
+      if (statsRes && statsRes.activeProperties !== undefined) setStats(statsRes);
+      if (chartRes && Array.isArray(chartRes)) {
+        setEnquiriesChartData(chartRes.map(item => ({ month: item.month, v: item.count })));
       }
-    };
-    fetchData();
-  }, []);
+      if (catRes && catRes.categories) setCategoryData(catRes);
+      if (topRes && Array.isArray(topRes)) setTopProperties(topRes);
+      if (enqRes && Array.isArray(enqRes)) setEnquiries(enqRes);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+    }
+  };
+
+  useEffect(() => { fetchData(); }, [selectedYear]);
 
   const handleFilterClick = () => {
-    const m = prompt('Enter Filter Year (e.g. 2026):', selectedMonth);
-    if (m) setSelectedMonth(m);
+    const y = prompt('Enter Year (e.g. 2026):', selectedYear);
+    if (y) setSelectedYear(y);
   };
+
+  const StatCard = ({ icon: Icon, label, value, badge, sub, iconBg }) => (
+    <div className="stat-card">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: iconBg || '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={18} color={iconBg ? '#fff' : '#2563EB'} />
+        </div>
+        <div className="stat-card-label" style={{ margin: 0 }}>{label}</div>
+      </div>
+      <div className="stat-card-value">{value}</div>
+      <div className="stat-card-meta">
+        <span className={`stat-badge ${badge?.startsWith('-') ? 'down' : 'up'}`}>
+          {badge?.startsWith('-') ? <TrendingDown size={10} /> : <TrendingUp size={10} />} {badge}%
+        </span>
+        <span className="stat-card-sub">{sub}</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className="fade-in">
@@ -94,36 +101,30 @@ export default function Dashboard() {
       {/* ══ Section 1: Stat Cards ════════ */}
       <div className="dash-section">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
-          <div className="stat-card">
-            <div className="stat-card-label">Total Bookings (Today)</div>
-            <div className="stat-card-value">{stats.totalEnquiriesToday}</div>
-            <div className="stat-card-meta">
-              <span className={`stat-badge ${stats.compareYesterday.enquiries.startsWith('-') ? 'down' : 'up'}`}>
-                {stats.compareYesterday.enquiries.startsWith('-') ? <TrendingDown size={10} /> : <TrendingUp size={10} />} {stats.compareYesterday.enquiries}%
-              </span>
-              <span className="stat-card-sub">Compared to yesterday</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card-label">Active Properties</div>
-            <div className="stat-card-value">{stats.activeProperties}</div>
-            <div className="stat-card-meta">
-              <span className={`stat-badge ${stats.compareYesterday.properties.startsWith('-') ? 'down' : 'up'}`}>
-                {stats.compareYesterday.properties.startsWith('-') ? <TrendingDown size={10} /> : <TrendingUp size={10} />} {stats.compareYesterday.properties}%
-              </span>
-              <span className="stat-card-sub">Compared to yesterday</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card-label">Occupancy Rate</div>
-            <div className="stat-card-value">{stats.occupancyRate}%</div>
-            <div className="stat-card-meta">
-              <span className={`stat-badge ${stats.compareYesterday.occupancy.startsWith('-') ? 'down' : 'up'}`}>
-                {stats.compareYesterday.occupancy.startsWith('-') ? <TrendingDown size={10} /> : <TrendingUp size={10} />} {stats.compareYesterday.occupancy}%
-              </span>
-              <span className="stat-card-sub">Compared to yesterday</span>
-            </div>
-          </div>
+          <StatCard
+            icon={MessageSquare}
+            label="Total Enquiries (Today)"
+            value={stats.totalEnquiriesToday}
+            badge={stats.compareYesterday.enquiries}
+            sub="Compared to yesterday"
+            iconBg="#2563EB"
+          />
+          <StatCard
+            icon={Building2}
+            label="Active Properties"
+            value={stats.activeProperties}
+            badge={stats.compareYesterday.properties}
+            sub="Compared to yesterday"
+            iconBg="#58A429"
+          />
+          <StatCard
+            icon={Users}
+            label="Total Property Owners"
+            value={stats.totalOwners}
+            badge={stats.compareYesterday.owners}
+            sub="Registered owners"
+            iconBg="#7C3AED"
+          />
         </div>
       </div>
 
@@ -131,21 +132,21 @@ export default function Dashboard() {
       <div className="dash-section">
         <div className="charts-row">
 
-          {/* Bar chart */}
+          {/* Enquiries Over Time Bar Chart */}
           <div className="chart-card">
             <div className="chart-card-header">
-              <div className="chart-card-title">Bookings Over Time</div>
+              <div className="chart-card-title">Enquiries Over Time</div>
               <button className="chart-filter" onClick={handleFilterClick} style={{ cursor: 'pointer' }}>
-                <Calendar size={12} /> {selectedMonth} <ChevronDown size={11} />
+                <Calendar size={12} /> {selectedYear} <ChevronDown size={11} />
               </button>
             </div>
             <ResponsiveContainer width="100%" height={340}>
-              <BarChart data={bookingsData} barSize={36} margin={{ top: 12, right: 4, left: -24, bottom: 0 }}>
+              <BarChart data={enquiriesChartData} barSize={36} margin={{ top: 12, right: 4, left: -24, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" vertical={false} />
                 <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
-                <Tooltip content={<BarTooltip />} cursor={{ fill: 'rgba(37,99,235,0.04)' }} />
-                <Bar dataKey="v" fill="#2563EB" radius={[8, 8, 0, 0]} background={{ fill: '#F3F4F6', radius: [8, 8, 0, 0] }} />
+                <Tooltip content={<EnqTooltip />} cursor={{ fill: 'rgba(88,164,41,0.06)' }} />
+                <Bar dataKey="v" fill="#58A429" radius={[8, 8, 0, 0]} background={{ fill: '#F3F4F6', radius: [8, 8, 0, 0] }} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -170,7 +171,6 @@ export default function Dashboard() {
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
-              {/* Center label */}
               <div style={{
                 position: 'absolute', inset: 0,
                 display: 'flex', flexDirection: 'column',
@@ -178,12 +178,11 @@ export default function Dashboard() {
                 pointerEvents: 'none',
               }}>
                 <span style={{ fontSize: 26, fontWeight: 800, color: '#111827', lineHeight: 1 }}>
-                  {categoryData.total.toLocaleString()}
+                  {(categoryData.total || 0).toLocaleString()}
                 </span>
                 <span style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Properties</span>
               </div>
             </div>
-            {/* Legend */}
             <div className="donut-legend" style={{ marginTop: 20 }}>
               {categoryData.categories.map((d, i) => (
                 <div className="legend-item" key={d.name}>
@@ -196,16 +195,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ══ Section 3: Property List ══════ */}
+      {/* ══ Section 3: Top Properties by Enquiries ══════ */}
       <div className="dash-section">
         <div className="chart-card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="table-header" style={{ padding: '14px 20px' }}>
-            <span className="table-title">Property List Top 10</span>
+            <span className="table-title">Top 10 Most Enquired Properties</span>
             <div className="table-header-right">
               <button className="table-view-all" onClick={() => navigate('/admin/properties/all')} style={{ cursor: 'pointer' }}>View All</button>
-              <button className="chart-filter" onClick={handleFilterClick} style={{ cursor: 'pointer' }}>
-                <Calendar size={12} /> {selectedMonth} <ChevronDown size={11} />
-              </button>
             </div>
           </div>
           <div style={{ overflowX: 'auto' }}>
@@ -219,15 +215,16 @@ export default function Dashboard() {
                   <Th>Category</Th>
                   <Th>Best Room Rate</Th>
                   <Th>Rooms</Th>
-                  <Th>Total Bookings</Th>
-                  <Th>Cancelled</Th>
+                  <Th>Total Enquiries</Th>
                   <Th>Rating</Th>
                   <Th>Status</Th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {topProperties.map((p) => (
+                {topProperties.length === 0 ? (
+                  <tr><td colSpan="11" style={{ textAlign: 'center', padding: '30px 0', color: '#6B7280' }}>No properties found</td></tr>
+                ) : topProperties.map((p) => (
                   <tr key={p.id || p.propertyNo}>
                     <td><span className="prop-id-link" onClick={() => navigate('/admin/properties/all')} style={{ cursor: 'pointer' }}>{p.propertyNo}</span></td>
                     <td>
@@ -240,8 +237,7 @@ export default function Dashboard() {
                     <td><span className="category-pill">{p.category}</span></td>
                     <td style={{ fontWeight: 600, color: '#111827' }}>{typeof p.bestRoomRate === 'number' ? `₹${p.bestRoomRate.toLocaleString()}` : p.bestRoomRate}</td>
                     <td>{p.rooms}</td>
-                    <td>{p.totalBookings}</td>
-                    <td>{p.cancelled}</td>
+                    <td style={{ fontWeight: 700, color: '#58A429' }}>{p.totalEnquiries ?? 0}</td>
                     <td style={{ color: '#374151' }}>{p.rating}</td>
                     <td>
                       <span className={`status-pill ${p.status === 'Active' ? 'active' : 'inactive'}`}>
@@ -259,16 +255,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ══ Section 4: Enquiries ══════════ */}
+      {/* ══ Section 4: Recent Enquiries ══════════ */}
       <div className="dash-section" style={{ marginBottom: 24 }}>
         <div className="chart-card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="table-header" style={{ padding: '14px 20px' }}>
-            <span className="table-title">Enquires</span>
+            <span className="table-title">Recent Enquiries</span>
             <div className="table-header-right">
               <button className="table-view-all" onClick={() => navigate('/admin/enquiries')} style={{ cursor: 'pointer' }}>View All</button>
-              <button className="chart-filter" onClick={handleFilterClick} style={{ cursor: 'pointer' }}>
-                <Calendar size={12} /> {selectedMonth} <ChevronDown size={11} />
-              </button>
             </div>
           </div>
           <div style={{ overflowX: 'auto' }}>
@@ -276,23 +269,27 @@ export default function Dashboard() {
               <thead>
                 <tr>
                   <Th>Enquiry No</Th>
-                  <Th>Dates &amp; Time</Th>
+                  <Th>Date &amp; Time</Th>
                   <Th>User Name</Th>
                   <Th>Phone No</Th>
                   <Th>Email Address</Th>
+                  <Th>Property</Th>
                   <Th>Query</Th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {enquiries.map((e) => (
+                {enquiries.length === 0 ? (
+                  <tr><td colSpan="8" style={{ textAlign: 'center', padding: '30px 0', color: '#6B7280' }}>No enquiries yet</td></tr>
+                ) : enquiries.map((e) => (
                   <tr key={e.enquiryNo || e.id}>
                     <td><span className="prop-id-link" onClick={() => navigate('/admin/enquiries')} style={{ cursor: 'pointer' }}>{e.enquiryNo || e.id}</span></td>
-                    <td style={{ fontSize: 11, color: '#6B7280' }}>{e.datesAndTime || e.datetime}</td>
-                    <td style={{ fontWeight: 500, color: '#111827' }}>{e.userName || e.user}</td>
-                    <td>{e.phoneNo || e.phone}</td>
+                    <td style={{ fontSize: 11, color: '#6B7280' }}>{e.datesAndTime}</td>
+                    <td style={{ fontWeight: 500, color: '#111827' }}>{e.userName}</td>
+                    <td>{e.phoneNo}</td>
                     <td style={{ color: '#2563EB' }}>{e.email}</td>
-                    <td style={{ maxWidth: 220, whiteSpace: 'normal', fontSize: 11, color: '#6B7280', lineHeight: 1.4 }}>{e.query}</td>
+                    <td style={{ fontSize: 12, color: '#4B5563' }}>{e.propertyName}</td>
+                    <td style={{ maxWidth: 200, whiteSpace: 'normal', fontSize: 11, color: '#6B7280', lineHeight: 1.4 }}>{e.query}</td>
                     <td>
                       <button className="action-dots" onClick={() => navigate('/admin/enquiries')} style={{ cursor: 'pointer' }}><MoreVertical size={14} /></button>
                     </td>
