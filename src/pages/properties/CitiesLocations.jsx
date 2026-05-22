@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown, Search, MoreVertical } from 'lucide-react';
 
 export default function CitiesLocations() {
   const [cities, setCities] = useState([]);
